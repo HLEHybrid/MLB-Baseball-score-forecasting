@@ -269,23 +269,35 @@ def teamExpectedRuns(teamName, opponent_team_name, starter_lineup_list,
     relief_expRuns = sum(relief_exp_runs_list) / len(relief_exp_runs_list)
     total_expRuns = (avg_inning / 9) * starter_expRuns + (
         (9 - avg_inning) / 9) * relief_expRuns
+    
+    
+    plt.style.use('seaborn-v0_8-paper')  # 논문 스타일 적용
 
     # 그래프 생성
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.bar(range(len(u)), u, color='blue')
     ax.set_xlabel('Runs Scored')
     ax.set_ylabel('Probability')
-    ax.set_title(f'{teamName}의 선발 상대 예상 득점 분포')
+    ax.set_title(f'{teamName} Expected scoring distribution against starters', fontsize=16, fontweight='bold')
     ax.legend()
 
     # 예상 득점 텍스트 추가
     anchored_text = AnchoredText(
-        f'상대 팀: {opponent_team_name}\nStarter Expected Runs: {(avg_inning / 9) * starter_expRuns:.2f}\nRelief Expected Runs: {((9 - avg_inning) / 9) * relief_expRuns:.2f}\nTotal Expected Runs: {total_expRuns:.2f}',
+        f'Opposing team: {opponent_team_name}\nStarter Expected Runs: {(avg_inning / 9) * starter_expRuns:.2f}\nRelief Expected Runs: {((9 - avg_inning) / 9) * relief_expRuns:.2f}\nTotal Expected Runs: {total_expRuns:.2f}',
         loc='upper right',
-        prop=dict(size=10))
+        prop=dict(size=12, fontweight='bold'),
+        frameon=True)
+    anchored_text.patch.set_boxstyle("round,pad=0.5")  # 박스 스타일 변경
+    anchored_text.patch.set_edgecolor("black")  # 테두리 색 추가
     ax.add_artist(anchored_text)
+    
+    # 불필요한 범례 제거
+    ax.legend().remove()
+    
+    # 격자 추가
+    ax.grid(axis='y', linestyle='--', alpha=0.6)
 
-    plt.savefig(f'img/{teamName}.png')
+    plt.savefig(f'img/{teamName}.png', dpi=400, bbox_inches='tight')
 
     print('게임 종료 확률: ' + str(sum(u)) + '\n')
     print('\n선발 투수 평균 이닝 수: ' + str(avg_inning) + '\n')
@@ -366,38 +378,12 @@ def pitcher_batter_aug(pitcher_data, batter_data, fielding_data, home_team,
         batter_pitcher = pd.merge(batter_pitcher, batter_data)
         batter_pitcher = pd.merge(batter_pitcher, fielding_data)
 
-        park_factors = {
-            'COL': 112,
-            'BOS': 107,
-            'KC': 105,
-            'CIN': 104,
-            'TEX': 102,
-            'WSH': 102,
-            'LAA': 101,
-            'STL': 101,
-            'HOU': 101,
-            'ATL': 101,
-            'PHI': 101,
-            'MIN': 101,
-            'TOR': 100,
-            'AZ': 100,
-            'CHC': 100,
-            'PIT': 100,
-            'MIA': 100,
-            'CWS': 99,
-            'LAD': 99,
-            'MIL': 99,
-            'NYY': 99,
-            'BAL': 98,
-            'DET': 98,
-            'OAK': 97,
-            'TB': 97,
-            'CLE': 96,
-            'SF': 96,
-            'SD': 96,
-            'NYM': 95,
-            'SEA': 92
-        }
+        # 22~24 Park Factors
+        park_factors = {'COL':112, 'BOS':107, 'KC':104, 'CIN':105, 'TEX':102, 'WSH':102, 'LAA':101, 'STL':101, 'HOU':101,
+                    'ATL':101, 'PHI':101, 'MIN':101, 'TOR':100, 'AZ':100, 'CHC':100, 'PIT':100, 'MIA':100, 'ATH':100, 
+                    'CWS':99, 'LAD':99, 'MIL':99, 'NYY':99, 'BAL':98, 'DET':98, 'OAK':97, 'TB':97, 'CLE':96, 'SF':96, 
+                    'SD':96, 'NYM':95, 'SEA':92}
+        
         batter_pitcher['park_factor'] = park_factors[home_team]
 
         # 필요한 열 선택
@@ -740,7 +726,7 @@ def today_lineup(bat_recode, pitch_recode, home_fielding_recode,
                 home_relief_data, away_batters_data, home_fielding_recode,
                 home_team, away_team)
 
-            load_scaler = load(open('scaler_2.pkl', 'rb'))
+            load_scaler = load(open('scaler.pkl', 'rb'))
 
             model_path = 'models/mlb_model_no_aug.keras'
             model = tf.keras.models.load_model(model_path)
@@ -818,6 +804,7 @@ def depth_num(team_short_name):
         'BAL': 'orioles',
         'DET': 'tigers',
         'OAK': 'athletics',
+        'ATH': 'athletics',
         'TB': 'rays',
         'CLE': 'guardians',
         'SF': 'giants',
@@ -884,5 +871,5 @@ if __name__ == '__main__':
     away_fielding_recode, _ = preprocessor.fielding_recode(2024, 'away')
 
     results = today_lineup(bat_recode, pitch_recode, home_fielding_recode,
-                           away_fielding_recode, 2024, '2024-09-05')
+                           away_fielding_recode, 2024, '2025-03-13')
     save_results_as_image(results, 'img/results.png')

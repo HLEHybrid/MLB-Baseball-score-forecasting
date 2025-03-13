@@ -225,10 +225,11 @@ def gamelog_agg(year):
     gamelog = gamelog[gamelog['game_type'] == 'R']
     gamelog = gamelog.dropna(subset=['events'])
 
-    park_factors = {'COL':112, 'BOS':107, 'KC':105, 'CIN':104, 'TEX':102, 'WSH':102, 'LAA':101, 'STL':101, 'HOU':101,
-                    'ATL':101, 'PHI':101, 'MIN':101, 'TOR':100, 'AZ':100, 'CHC':100, 'PIT':100, 'MIA':100, 'CWS':99, 
-                    'LAD':99, 'MIL':99, 'NYY':99, 'BAL':98, 'DET':98, 'OAK':97, 'TB':97, 'CLE':96, 'SF':96, 'SD':96, 
-                    'NYM':95, 'SEA':92}
+    # 22~24 Park Factors
+    park_factors = {'COL':112, 'BOS':107, 'KC':104, 'CIN':105, 'TEX':102, 'WSH':102, 'LAA':101, 'STL':101, 'HOU':101,
+                    'ATL':101, 'PHI':101, 'MIN':101, 'TOR':100, 'AZ':100, 'CHC':100, 'PIT':100, 'MIA':100, 'ATH' :100, 
+                    'CWS':99, 'LAD':99, 'MIL':99, 'NYY':99, 'BAL':98, 'DET':98, 'OAK':97, 'TB':97, 'CLE':96, 'SF':96, 
+                    'SD':96, 'NYM':95, 'SEA':92}
 
     gamelog['park_factor'] = gamelog['home_team'].map(park_factors)
 
@@ -394,7 +395,7 @@ def split_to_num(split):
 
 if __name__ == '__main__':
     # 분석을 원하는 연도 입력
-    years = [2021,2022,2023]
+    years = [2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
     gamelog_all = pd.DataFrame()
 
     for year in years:

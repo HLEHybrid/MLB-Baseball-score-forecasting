@@ -13,7 +13,7 @@ from pickle import dump
 
 # VAE 클래스 정의
 class VariantionalAutoencoder(tf.keras.Model):
-    def __init__(self, input_dim, learning_rate=1e-4, batch_size=64, n_z=16):
+    def __init__(self, input_dim, learning_rate=1e-5, batch_size=32, n_z=32):
         super(VariantionalAutoencoder, self).__init__()
         self.input_dim = input_dim
         self.learning_rate = learning_rate
@@ -64,7 +64,7 @@ class VariantionalAutoencoder(tf.keras.Model):
 
 if __name__ == "__main__":
     # 데이터 로드 및 전처리
-    data = pd.read_pickle('gamelog_agg.pkl')
+    data = pd.read_pickle('data/gamelog_agg.pkl')
     x = data.iloc[:, 13:-1].values
     y = data.iloc[:, -1].values
 
@@ -89,6 +89,8 @@ if __name__ == "__main__":
     # 모든 소수 클래스 데이터 오버샘플링
     x_train_augmented = []
     y_train_augmented = []
+    
+    vae_train_losses_per_class = {}  # 클래스별 손실 저장
 
     for cls in np.unique(y_train):
         if cls == majority_class:
@@ -99,11 +101,24 @@ if __name__ == "__main__":
         x_train_minority = x_train[y_train == cls]
         input_dim = x_train.shape[1]
         vae = VariantionalAutoencoder(input_dim=input_dim)
+        
+        vae_train_losses = []  # 특정 클래스에 대한 손실 저장
+        
         for epoch in range(100):
             np.random.shuffle(x_train_minority)
+            epoch_loss = 0
+            num_batches = len(x_train_minority) // vae.batch_size
+            
             for i in range(0, len(x_train_minority), vae.batch_size):
                 batch = x_train_minority[i:i + vae.batch_size]
-                vae.train_step(batch)
+                loss = vae.train_step(batch)
+                epoch_loss += loss.numpy()
+                
+            epoch_loss /= num_batches
+            vae_train_losses.append(epoch_loss)  # 손실 저장
+            print(f"VAE Class {cls}, Epoch {epoch+1}/100, Loss: {epoch_loss:.4f}")
+            
+        vae_train_losses_per_class[cls] = vae_train_losses  # 딕셔너리에 저장
 
         n_samples_to_generate = len(x_train[y_train == majority_class]) - len(x_train_minority)
         z_sample = np.random.normal(size=(n_samples_to_generate, vae.n_z))
@@ -111,7 +126,23 @@ if __name__ == "__main__":
 
         x_train_augmented.append(np.vstack([x_train_minority, generated_samples]))
         y_train_augmented.append(np.full(len(x_train_minority) + n_samples_to_generate, cls))
+        
+        vae_train_losses_per_class[cls] = vae_train_losses  # 딕셔너리에 저장
 
+        # VAE 학습 곡선 시각화
+    
+        plt.style.use('seaborn-v0_8-paper')
+
+        # 클래스별 VAE 학습 곡선 시각화 및 저장
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, len(vae_train_losses) + 1), vae_train_losses, 'bo-', markersize=6, linewidth=2)
+        plt.title(f'VAE Training Loss Curve (Class {cls})', fontsize=16, fontweight='bold')
+        plt.xlabel('Epochs', fontsize=14)
+        plt.ylabel('Loss', fontsize=14)
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.savefig(f'vae_loss_curve_class_{cls}.png', dpi=400, bbox_inches='tight')
+        plt.close()
+    
     x_train_augmented = np.vstack(x_train_augmented)
     y_train_augmented = np.hstack(y_train_augmented)
 
@@ -154,25 +185,27 @@ if __name__ == "__main__":
 
     epochs = range(1, len(loss) + 1)
 
+    # Loss 그래프
     plt.figure(figsize=(10, 6))
-    plt.plot(epochs, loss, 'bo-', label='Training loss')
-    plt.plot(epochs, val_loss, 'ro-', label='Validation loss')
-    plt.title('Training and validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig('loss_learning_curve.png', dpi=300)
+    plt.plot(epochs, loss, 'bo-', label='Training Loss', markersize=6, linewidth=2)
+    plt.plot(epochs, val_loss, 'ro-', label='Validation Loss', markersize=6, linewidth=2)
+    plt.title('Training and Validation Loss', fontsize=16, fontweight='bold')
+    plt.xlabel('Epochs', fontsize=14)
+    plt.ylabel('Loss', fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.savefig('loss_learning_curve.png', dpi=400, bbox_inches='tight')
 
+    # Accuracy 그래프
     plt.figure(figsize=(10, 6))
-    plt.plot(epochs, accuracy, 'bo-', label='Training Accuracy')
-    plt.plot(epochs, val_accuracy, 'ro-', label='Validation Accuracy')
-    plt.title('Training and validation Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig('accuracy_learning_curve.png', dpi=300)
+    plt.plot(epochs, accuracy, 'bo-', label='Training Accuracy', markersize=6, linewidth=2)
+    plt.plot(epochs, val_accuracy, 'ro-', label='Validation Accuracy', markersize=6, linewidth=2)
+    plt.title('Training and Validation Accuracy', fontsize=16, fontweight='bold')
+    plt.xlabel('Epochs', fontsize=14)
+    plt.ylabel('Accuracy', fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.savefig('accuracy_learning_curve.png', dpi=400, bbox_inches='tight')
 
     # 모델 평가
     test_loss, test_accuracy = model.evaluate(x_test, y_test)

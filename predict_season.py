@@ -741,9 +741,9 @@ def today_lineup(bat_recode, pitch_recode, home_fielding_recode,
                 home_relief_data, away_batters_data, home_fielding_recode,
                 home_team, away_team)
 
-            load_scaler = load(open('scaler_2.pkl', 'rb'))
+            load_scaler = load(open('scaler.pkl', 'rb'))
 
-            model_path = 'models/mlb_model.99.keras'
+            model_path = 'models/baseline_dnn_model_final.keras'
             model = tf.keras.models.load_model(model_path)
 
             print('라인업 만들기')
@@ -875,13 +875,45 @@ def save_results_as_image(results, filename):
     ax.set_axis_off()
     plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
+    
+def load_actual_results(date_str):
+    """
+    주어진 날짜의 실제 경기 결과를 MLB stats API를 통해 불러옵니다.
+    :param date_str: 날짜 문자열 ('YYYY-MM-DD')
+    :return: dict. 키는 (home_team_abbr, away_team_abbr) 튜플, 값은 {'home_score': int, 'away_score': int}
+    """
+    url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={date_str}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+    except Exception as e:
+        print(f"실제 경기 결과 불러오기 실패: {e}")
+        return {}
+
+    results = {}
+    if data.get("dates"):
+        for date_entry in data["dates"]:
+            for game in date_entry.get("games", []):
+                # 경기 상태가 Final(종료)인 경우에만 처리합니다.
+                if game.get("status", {}).get("detailedState", "") == "Final":
+                    # statsapi에서는 team 정보에 약어(abbreviation)도 포함되어 있습니다.
+                    home_team = game["teams"]["home"]["team"].get("abbreviation", None)
+                    away_team = game["teams"]["away"]["team"].get("abbreviation", None)
+                    home_score = game["teams"]["home"].get("score", 0)
+                    away_score = game["teams"]["away"].get("score", 0)
+                    if home_team and away_team:
+                        results[(home_team, away_team)] = {
+                            "home_score": home_score,
+                            "away_score": away_score
+                        }
+    return results
 
 
 if __name__ == '__main__':
     
     # 시즌 개막일과 오늘 날짜
     start_date = datetime(2024, 3, 28)
-    end_date = datetime.now()
+    end_date = datetime(2024, 9, 25)
 
     # 날짜 차이 계산
     delta = end_date - start_date
@@ -890,15 +922,94 @@ if __name__ == '__main__':
     pitch_recode, _ = preprocessor.pitch_recode(2024)
     home_fielding_recode, _ = preprocessor.fielding_recode(2024, 'home')
     away_fielding_recode, _ = preprocessor.fielding_recode(2024, 'away')
+    
+    # 날짜별 예측 결과를 누적할 리스트 (각 항목에 날짜, 팀, 예측 승률 등 저장)
+    all_predictions = []  # 예: { 'date': 'YYYY-MM-DD', 'home_team': 'BOS', 'away_team': 'NYY', 'home_win_prob': 0.63 }
 
-    # 각 날짜에 대해 결과 생성 및 저장
+    # 각 날짜에 대해 예측 결과 생성 및 저장
     for i in range(delta.days + 1):
         current_date = start_date + timedelta(days=i)
         current_date_str = current_date.strftime('%Y-%m-%d')
+        print(f"\n=== {current_date_str} 경기 예측 처리 중 ===")
         
-        # today_lineup 함수 호출
-        results = today_lineup(bat_recode, pitch_recode, home_fielding_recode,
-                            away_fielding_recode, 2024, current_date_str)
-        
-        # 결과 이미지를 날짜에 맞게 저장
-        save_results_as_image(results, f'img/results_{current_date_str}.png')
+        try:
+            # today_lineup 함수를 호출하여 해당 날짜의 경기 결과(예측)를 받아옵니다.
+            results = today_lineup(bat_recode, pitch_recode, home_fielding_recode,
+                                   away_fielding_recode, 2024, current_date_str)
+            
+            # 예측 결과 이미지를 저장 (개별 경기 분포 등)
+            save_results_as_image(results, f'img/results_{current_date_str}.png')
+            
+            # 각 경기별 예측 결과를 all_predictions에 추가합니다.
+            for game_num, game_info in results.items():
+                # game_info에는 'home_team', 'away_team', 'home_win_prob' 등의 항목이 있음
+                all_predictions.append({
+                    'date': current_date_str,
+                    'home_team': game_info['home_team'],   # 예: 'BOS'
+                    'away_team': game_info['away_team'],   # 예: 'NYY'
+                    'home_win_prob': game_info['home_win_prob']
+                })
+        except Exception as e:
+            print(f"{current_date_str}의 예측 처리 중 오류 발생: {e}")
+
+    ##########################################################################
+    # 모델 예측 정확도 평가
+    total_games = 0
+    correct_predictions = 0
+    total_brier = 0.0
+
+    # 날짜별로 예측 기록을 그룹화합니다.
+    predictions_by_date = {}
+    for pred in all_predictions:
+        predictions_by_date.setdefault(pred['date'], []).append(pred)
+
+    # 각 날짜별 실제 경기 결과와 비교
+    for date_str, preds in predictions_by_date.items():
+        print(f"\n[{date_str}] 실제 경기 결과 불러오는 중...")
+        actual_results = load_actual_results(date_str)
+        if not actual_results:
+            print(f"{date_str}에 실제 경기 결과가 없습니다.")
+            continue
+
+        for pred in preds:
+            # 실제 경기 결과는 키 (home_team_abbr, away_team_abbr)로 저장되어 있습니다.
+            key = (pred['home_team'], pred['away_team'])
+            if key in actual_results:
+                total_games += 1
+                actual = actual_results[key]
+                # 실제 홈팀 승리 여부 결정
+                actual_home_win = actual['home_score'] > actual['away_score']
+                # 모델 예측: home_win_prob가 0.5보다 크면 홈팀 승리 예측
+                predicted_home_win = pred['home_win_prob'] > 0.5
+
+                if actual_home_win == predicted_home_win:
+                    correct_predictions += 1
+
+                # Brier score: 실제 승리(홈 승리=1, 아니면 0)와 예측 확률의 오차 제곱
+                actual_value = 1.0 if actual_home_win else 0.0
+                total_brier += (pred['home_win_prob'] - actual_value) ** 2
+            else:
+                print(f"{date_str}의 경기 ({pred['home_team']} vs {pred['away_team']})는 실제 결과에 매칭되지 않음.")
+
+    if total_games > 0:
+        accuracy = correct_predictions / total_games
+        avg_brier = total_brier / total_games
+        print("\n=========================")
+        print(f"총 경기 수: {total_games}")
+        print(f"예측 정확도: {accuracy:.2%}")
+        print(f"평균 Brier 점수: {avg_brier:.4f}")
+        print("=========================")
+    else:
+        print("실제 경기 결과와 매칭되는 예측 기록이 없습니다.")
+
+    ##########################################################################
+    # 시즌 전체 결과(예측 정확도)를 시각화 – 바 차트로 저장
+    fig, ax = plt.subplots(figsize=(8, 6))
+    metrics_text = (f"총 경기 수: {total_games}\n"
+                    f"예측 정확도: {accuracy:.2%}\n"
+                    f"평균 Brier 점수: {avg_brier:.4f}")
+    anchored_text = AnchoredText(metrics_text, loc='center', prop=dict(size=12), frameon=True)
+    ax.add_artist(anchored_text)
+    ax.set_axis_off()
+    plt.title("시즌 전체 예측 정확도 평가")
+    plt.savefig("img/season_prediction_accuracy.png", bbox_inches='tight')

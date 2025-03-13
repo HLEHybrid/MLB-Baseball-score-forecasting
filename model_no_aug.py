@@ -10,10 +10,11 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 import matplotlib.pyplot as plt
 from pickle import dump
+from sklearn.metrics import log_loss
 
 if __name__ == "__main__":
     # 데이터 로드 및 전처리
-    data = pd.read_pickle('gamelog_agg.pkl')
+    data = pd.read_pickle('data/gamelog_agg.pkl')
     X = data.iloc[:, 13:-1].values
     Y = data.iloc[:, -1].values
 
@@ -68,26 +69,30 @@ if __name__ == "__main__":
     val_accuracy = history.history['val_accuracy']
 
     epochs = range(1, len(loss) + 1)
+    
+    plt.style.use('seaborn-v0_8-paper')
 
+    # Loss 그래프 (데이터 증강 전)
     plt.figure(figsize=(10, 6))
-    plt.plot(epochs, loss, 'bo-', label='Training loss')
-    plt.plot(epochs, val_loss, 'ro-', label='Validation loss')
-    plt.title('Training and validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig('loss_learning_curve_no_aug.png', dpi=300)
+    plt.plot(epochs, loss, 'bo-', label='Training Loss', markersize=6, linewidth=2)
+    plt.plot(epochs, val_loss, 'ro-', label='Validation Loss', markersize=6, linewidth=2)
+    plt.title('Training and Validation Loss (No Augmentation)', fontsize=16, fontweight='bold')
+    plt.xlabel('Epochs', fontsize=14)
+    plt.ylabel('Loss', fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.savefig('loss_learning_curve_no_aug.png', dpi=400, bbox_inches='tight')
 
+    # Accuracy 그래프 (데이터 증강 전)
     plt.figure(figsize=(10, 6))
-    plt.plot(epochs, accuracy, 'bo-', label='Training Accuracy')
-    plt.plot(epochs, val_accuracy, 'ro-', label='Validation Accuracy')
-    plt.title('Training and validation Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig('accuracy_learning_curve_no_aug.png', dpi=300)
+    plt.plot(epochs, accuracy, 'bo-', label='Training Accuracy', markersize=6, linewidth=2)
+    plt.plot(epochs, val_accuracy, 'ro-', label='Validation Accuracy', markersize=6, linewidth=2)
+    plt.title('Training and Validation Accuracy (No Augmentation)', fontsize=16, fontweight='bold')
+    plt.xlabel('Epochs', fontsize=14)
+    plt.ylabel('Accuracy', fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.savefig('accuracy_learning_curve_no_aug.png', dpi=400, bbox_inches='tight')
 
     # 모델 평가
     test_loss, test_accuracy = model.evaluate(X_test, Y_test)
@@ -97,6 +102,9 @@ if __name__ == "__main__":
     # 예측 및 성능 평가
     Y_pred = model.predict(X_test)
     Y_pred_classes = np.argmax(Y_pred, axis=1)
+    
+    log_loss_value = log_loss(Y_test, Y_pred)
+    print(f'Test Log Loss (scikit-learn, one-hot): {log_loss_value}')
 
     print(confusion_matrix(np.argmax(Y_test, axis=1), Y_pred_classes))
     print(classification_report(np.argmax(Y_test, axis=1), Y_pred_classes))
