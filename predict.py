@@ -362,6 +362,7 @@ def pitcher_batter_aug(pitcher_data, batter_data, fielding_data, home_team,
     :param home_team: 홈팀 경기장 정보.
     :return: 결합된 데이터 리스트.
     """
+    
     batter_pitcher_list = []
     for pitcher_num in list(pitcher_data['pitcher_key_mlbam']):
         batter_pitcher = pd.DataFrame()
@@ -803,8 +804,8 @@ def depth_num(team_short_name):
         'NYY': 'yankees',
         'BAL': 'orioles',
         'DET': 'tigers',
-        'OAK': 'athletics',
         'ATH': 'athletics',
+        'OAK': 'athletics',
         'TB': 'rays',
         'CLE': 'guardians',
         'SF': 'giants',
@@ -870,6 +871,10 @@ if __name__ == '__main__':
     home_fielding_recode, _ = preprocessor.fielding_recode(2024, 'home')
     away_fielding_recode, _ = preprocessor.fielding_recode(2024, 'away')
 
+    # Change Team name becauce of OAK
+    home_fielding_recode.loc[home_fielding_recode['home_team'] == 'OAK', 'home_team'] = 'ATH'
+    away_fielding_recode.loc[away_fielding_recode['away_team'] == 'OAK', 'away_team'] = 'ATH'
+    
     results = today_lineup(bat_recode, pitch_recode, home_fielding_recode,
-                           away_fielding_recode, 2024, '2025-03-13')
+                           away_fielding_recode, 2024, '2025-04-04')
     save_results_as_image(results, 'img/results.png')

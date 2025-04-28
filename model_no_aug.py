@@ -60,7 +60,7 @@ if __name__ == "__main__":
                   loss=tf.keras.losses.CategoricalFocalCrossentropy(gamma=0.5), metrics=['accuracy'])
     
     # 모델 학습
-    history = model.fit(X_train, Y_train, epochs=100, batch_size=32, validation_data=(X_val, Y_val), callbacks=[modelckpt, earlystopping])
+    history = model.fit(X_train, Y_train, epochs=200, batch_size=32, validation_data=(X_val, Y_val), callbacks=[modelckpt, earlystopping])
 
     # 학습 곡선 시각화
     loss = history.history['loss']
